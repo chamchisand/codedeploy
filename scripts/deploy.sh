@@ -7,6 +7,6 @@ if [[ $response =~ ^[Yy]$ ]]; then
   aws deploy create-deployment \
     --application-name TestApp \
     --deployment-config-name CodeDeployDefault.OneAtATime \
-    --deployment-group-name www \
+    --deployment-group-name TestAppGroup \
     --github-location repository=chamchisand/codedeploy,commitId=$commit
 fi
