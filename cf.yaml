@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Simple Template
+
+Parameters:
+  AppName:
+    Type: String
+    Default: Simple
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+  RedisHost:
+    Type: String
+  SecurityGroupId:
+    Type: String
+
+Resources:
+  CodeDeployServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codedeploy.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+
+  LaunchConfig:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      EbsOptimized: false
+      IamInstanceProfile: webserver
+      ImageId: ami-6b8cef13
+      InstanceMonitoring: false
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPairName
+      SecurityGroups:
+        - !Ref SecurityGroupId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y ruby aws-cli git gcc-c++
+          wget https://aws-codedeploy-us-west-2.s3.amazonaws.com/latest/install
+          chmod +x ./install
+          sudo ./install auto
+
+  TargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Port: 3000
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref VpcId
+
+  AutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      AutoScalingGroupName: Simple
+      AvailabilityZones:
+        Fn::GetAZs:
+          Ref: "AWS::Region"
+      Cooldown: 300
+      DesiredCapacity: 1
+      HealthCheckGracePeriod: 300
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref LaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      Tags:
+        - Key: Name
+          Value: !Ref AppName
+          PropagateAtLaunch: true
+        - Key: REDIS_HOST
+          Value: !Ref RedisHost
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
+
+  CodeDeploy:
+    Type: "AWS::CodeDeploy::Application"
+    Properties:
+      ApplicationName: Simple
+
+  DeploymentGroup:
+    Type: "AWS::CodeDeploy::DeploymentGroup"
+    Properties:
+      ApplicationName: !Ref AppName
+      DeploymentGroupName: Simple
+      AutoScalingGroups:
+        - Ref: AutoScalingGroup
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn

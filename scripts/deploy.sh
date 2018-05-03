@@ -6,13 +6,12 @@ echo $commitId
 if [[ -z "$commitId" ]]; then
   commitId=`git show --summary | grep commit | awk '{print $2}'`
 fi
-read -r -p "Are you sure to deply revision $commitId? [y/n] " response
+read -r -p "Are you sure to deploy revision $commitId? [y/n] " response
 
-exit
 if [[ $response =~ ^[Yy]$ ]]; then
   aws deploy create-deployment \
-    --application-name TestApp \
+    --application-name Simple \
     --deployment-config-name CodeDeployDefault.OneAtATime \
-    --deployment-group-name TestAppGroup \
+    --deployment-group-name Simple \
     --github-location repository=chamchisand/codedeploy,commitId=$commitId
 fi
